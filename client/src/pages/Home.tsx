@@ -1,28 +1,73 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import RoomLobby from "@/components/RoomLobby";
 import VideoCall from "@/components/VideoCall";
+import { useMediaStream } from "@/hooks/useMediaStream";
+import { useWebRTC } from "@/hooks/useWebRTC";
+
+type ConnectionQuality = "excellent" | "good" | "poor" | "disconnected";
 
 export default function Home() {
   const [inCall, setInCall] = useState(false);
   const [roomCode, setRoomCode] = useState("");
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [connectionQuality, setConnectionQuality] = useState<ConnectionQuality>("good");
+  const [isCreator, setIsCreator] = useState(false);
 
-  const handleCreateRoom = () => {
+  const { localStream, isScreenSharing, error, startCamera, toggleScreenShare } =
+    useMediaStream();
+
+  const { createRoom, joinRoom } = useWebRTC({
+    roomCode,
+    localStream,
+    onRemoteStream: setRemoteStream,
+    onConnectionQuality: setConnectionQuality,
+  });
+
+  const handleCreateRoom = async () => {
     const newRoomCode = generateRoomCode();
     setRoomCode(newRoomCode);
+    setIsCreator(true);
     setInCall(true);
-    console.log("Created room:", newRoomCode);
+
+    try {
+      await startCamera();
+      // Give a moment for the stream to initialize
+      setTimeout(() => {
+        createRoom();
+      }, 500);
+    } catch (err) {
+      console.error("Failed to start camera:", err);
+      alert("Unable to access camera. Please check your permissions.");
+      setInCall(false);
+    }
   };
 
-  const handleJoinRoom = (code: string) => {
+  const handleJoinRoom = async (code: string) => {
     setRoomCode(code);
+    setIsCreator(false);
     setInCall(true);
-    console.log("Joined room:", code);
+
+    try {
+      await startCamera();
+      // Give a moment for the stream to initialize
+      setTimeout(() => {
+        joinRoom();
+      }, 500);
+    } catch (err) {
+      console.error("Failed to start camera:", err);
+      alert("Unable to access camera. Please check your permissions.");
+      setInCall(false);
+    }
   };
 
   const handleEndCall = () => {
+    if (localStream) {
+      localStream.getTracks().forEach((track) => track.stop());
+    }
     setInCall(false);
     setRoomCode("");
-    console.log("Call ended");
+    setRemoteStream(null);
+    window.location.reload();
   };
 
   const generateRoomCode = () => {
@@ -37,12 +82,22 @@ export default function Home() {
     return code;
   };
 
+  // Show error if media access fails
+  useEffect(() => {
+    if (error) {
+      alert(error);
+    }
+  }, [error]);
+
   if (inCall) {
     return (
       <VideoCall
         roomCode={roomCode}
-        localStream={null}
-        remoteStream={null}
+        localStream={localStream}
+        remoteStream={remoteStream}
+        connectionQuality={connectionQuality}
+        isScreenSharing={isScreenSharing}
+        onToggleScreenShare={toggleScreenShare}
         onEndCall={handleEndCall}
       />
     );

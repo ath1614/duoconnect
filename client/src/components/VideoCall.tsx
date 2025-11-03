@@ -4,10 +4,15 @@ import ControlBar from "./ControlBar";
 import ConnectionStatus from "./ConnectionStatus";
 import RoomCodeDisplay from "./RoomCodeDisplay";
 
+type ConnectionQuality = "excellent" | "good" | "poor" | "disconnected";
+
 interface VideoCallProps {
   roomCode: string;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
+  connectionQuality?: ConnectionQuality;
+  isScreenSharing?: boolean;
+  onToggleScreenShare?: () => void;
   onEndCall: () => void;
 }
 
@@ -15,11 +20,13 @@ export default function VideoCall({
   roomCode,
   localStream,
   remoteStream,
+  connectionQuality = "good",
+  isScreenSharing = false,
+  onToggleScreenShare,
   onEndCall,
 }: VideoCallProps) {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
 
   const handleToggleMute = () => {
     if (localStream) {
@@ -41,15 +48,16 @@ export default function VideoCall({
     }
   };
 
-  const handleToggleScreenShare = async () => {
-    console.log("Screen share toggle:", !isScreenSharing);
-    setIsScreenSharing(!isScreenSharing);
+  const handleToggleScreenShare = () => {
+    if (onToggleScreenShare) {
+      onToggleScreenShare();
+    }
   };
 
   return (
     <div className="w-screen h-screen bg-black relative overflow-hidden">
       <RoomCodeDisplay roomCode={roomCode} />
-      <ConnectionStatus quality="good" />
+      <ConnectionStatus quality={connectionQuality} />
 
       {remoteStream ? (
         <div className="w-full h-full">
