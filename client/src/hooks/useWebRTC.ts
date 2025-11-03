@@ -5,6 +5,7 @@ import SimplePeer from "simple-peer";
 interface UseWebRTCProps {
   roomCode: string;
   localStream: MediaStream | null;
+  isCreator: boolean;
   onRemoteStream: (stream: MediaStream | null) => void;
   onConnectionQuality: (quality: "excellent" | "good" | "poor" | "disconnected") => void;
 }
@@ -12,6 +13,7 @@ interface UseWebRTCProps {
 export function useWebRTC({
   roomCode,
   localStream,
+  isCreator,
   onRemoteStream,
   onConnectionQuality,
 }: UseWebRTCProps) {
@@ -50,8 +52,9 @@ export function useWebRTC({
       console.log("Peer joined:", remotePeerId);
       setPeerId(remotePeerId);
       
-      // Create peer connection as initiator
-      if (!peerRef.current && localStream) {
+      // Only the joiner initiates the peer connection
+      // The creator waits for signals
+      if (!peerRef.current && localStream && !isCreator) {
         createPeer(remotePeerId, true, socket, localStream);
       }
     });
@@ -145,6 +148,9 @@ export function useWebRTC({
       console.log("Peer connection established");
       setIsConnected(true);
       onConnectionQuality("excellent");
+      
+      // Monitor connection quality
+      startQualityMonitoring(peer);
     });
 
     peer.on("close", () => {
@@ -159,6 +165,45 @@ export function useWebRTC({
     });
 
     peerRef.current = peer;
+  };
+
+  const startQualityMonitoring = (peer: SimplePeer.Instance) => {
+    const checkQuality = () => {
+      const pc = (peer as any)._pc as RTCPeerConnection;
+      if (!pc) return;
+
+      pc.getStats(null).then((stats) => {
+        stats.forEach((report) => {
+          if (report.type === "inbound-rtp" && report.kind === "video") {
+            const packetsLost = report.packetsLost || 0;
+            const packetsReceived = report.packetsReceived || 0;
+            const totalPackets = packetsLost + packetsReceived;
+            
+            if (totalPackets > 0) {
+              const lossRate = packetsLost / totalPackets;
+              
+              if (lossRate < 0.02) {
+                onConnectionQuality("excellent");
+              } else if (lossRate < 0.05) {
+                onConnectionQuality("good");
+              } else {
+                onConnectionQuality("poor");
+              }
+            }
+          }
+        });
+      }).catch((err) => {
+        console.error("Error getting stats:", err);
+      });
+    };
+
+    // Check quality every 2 seconds
+    const interval = setInterval(checkQuality, 2000);
+    
+    // Cleanup on peer close
+    peer.on("close", () => {
+      clearInterval(interval);
+    });
   };
 
   const createRoom = () => {

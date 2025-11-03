@@ -19,6 +19,7 @@ export default function Home() {
   const { createRoom, joinRoom } = useWebRTC({
     roomCode,
     localStream,
+    isCreator,
     onRemoteStream: setRemoteStream,
     onConnectionQuality: setConnectionQuality,
   });

@@ -6,13 +6,14 @@ export function useMediaStream() {
   const [error, setError] = useState<string | null>(null);
 
   // Initialize camera and microphone
+  // Optimized for slow networks with lower resolution
   const startCamera = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 24, max: 30 },
+          width: { ideal: 640 },
+          height: { ideal: 360 },
+          frameRate: { ideal: 24, max: 24 },
         },
         audio: {
           echoCancellation: true,
